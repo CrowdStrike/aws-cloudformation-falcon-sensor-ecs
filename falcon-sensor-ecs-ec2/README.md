@@ -213,7 +213,7 @@ determine the right info.
     <tr>
       <td>ECS_EC2_CLUSTER_NAME</td>
       <td>Your ECS cluster name</td>
-      <td>your-ecs-cluster-name<br>something else</td>
+      <td>your-ecs-cluster-name</td>
     </tr>
     <tr>
       <td>FALCON_CID</td>

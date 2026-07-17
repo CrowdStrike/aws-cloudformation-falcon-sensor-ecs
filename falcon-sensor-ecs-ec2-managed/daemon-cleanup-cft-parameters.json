@@ -1,0 +1,4 @@
+[
+  "ECSClusterName=<INSERT ECS Cluster name>",
+  "FalconImagePath=<INSERT ECR Falcon sensor image path>"
+]

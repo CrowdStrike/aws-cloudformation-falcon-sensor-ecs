@@ -89,7 +89,7 @@ Parameters:
       - false
   ECSExecutionRoleArn:
     Type: String
-    Description: Execution role name to exec in to the Falcon container. Only required if ECS exec is enabled.
+    Description: Execution role name to exec in to the Falcon container. Only required if logging or ECS exec is enabled.
     Default: ""
   ECSTaskRoleArn:
     Type: String
