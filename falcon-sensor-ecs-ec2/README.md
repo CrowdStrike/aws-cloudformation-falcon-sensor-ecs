@@ -303,6 +303,10 @@ The output should match the number of EC2 instances in your cluster.
   - Filter the host table to show your ECS cluster.
 
 #### Template Configuration Parameters
+
+> [!NOTE]
+> The `Backend` parameter is deprecated. Starting with Falcon sensor v7.39, the sensor always uses the `bpf` backend. If you set `Backend=kernel`, it will be silently ignored. The parameter remains in the template for backward compatibility with older sensor versions.
+
 <table>
   <thead>
     <tr>
@@ -385,10 +389,18 @@ The output should match the number of EC2 instances in your cluster.
     <tr>
       <td>Backend</td>
       <td>No</td>
-      <td>Falcon backend option</td>
+      <td>Falcon backend option. Starting with sensor v7.39, the sensor always uses <code>bpf</code> and <code>kernel</code> will be ignored.</td>
       <td>
         Default: bpf<br>
         Option: kernel
+      </td>
+    </tr>
+    <tr>
+      <td>Cloud</td>
+      <td>No</td>
+      <td>CrowdStrike cloud region</td>
+      <td>
+        Options: us-1, us-2, eu-1, us-gov-1, us-gov-2
       </td>
     </tr>
     <tr>
