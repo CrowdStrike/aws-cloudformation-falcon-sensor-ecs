@@ -400,7 +400,7 @@ The output should match the number of EC2 instances in your cluster.
       <td>No</td>
       <td>CrowdStrike cloud region</td>
       <td>
-        Options: us-1, us-2, eu-1, us-gov-1, us-gov-2
+        Options: us-1, us-2, us-3, eu-1, us-gov-1, us-gov-2
       </td>
     </tr>
     <tr>
