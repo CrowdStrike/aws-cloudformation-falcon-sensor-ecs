@@ -9,6 +9,9 @@ through CloudFormation gives you:
 - **Persistent protection**: Sensors continue running even after instance restarts
 - **Infrastructure as code**: Deploy consistently across environments with version control
 
+> [!IMPORTANT]
+> Falcon sensor v7.40 and later requires CloudFormation template **v0.2.0 or later**. If you are deploying or upgrading to sensor v7.40+, ensure you are using the latest version of the template from this repository before proceeding.
+
 ## Requirements
 Verify you meet these requirements:
 
@@ -305,7 +308,7 @@ The output should match the number of EC2 instances in your cluster.
 #### Template Configuration Parameters
 
 > [!NOTE]
-> The `Backend` parameter is deprecated. Starting with Falcon sensor v7.39, the sensor always uses the `bpf` backend. If you set `Backend=kernel`, it will be silently ignored. The parameter remains in the template for backward compatibility with older sensor versions.
+> The `Backend` parameter is deprecated. Starting with Falcon sensor v7.40, the sensor always uses the `bpf` backend. If you set `Backend=kernel`, it will be silently ignored. The parameter remains in the template for backward compatibility with older sensor versions.
 
 <table>
   <thead>
@@ -389,7 +392,7 @@ The output should match the number of EC2 instances in your cluster.
     <tr>
       <td>Backend</td>
       <td>No</td>
-      <td>Falcon backend option. Starting with sensor v7.39, the sensor always uses <code>bpf</code> and <code>kernel</code> will be ignored.</td>
+      <td>Falcon backend option. Starting with sensor v7.40, the sensor always uses <code>bpf</code> and <code>kernel</code> will be ignored.</td>
       <td>
         Default: bpf<br>
         Option: kernel

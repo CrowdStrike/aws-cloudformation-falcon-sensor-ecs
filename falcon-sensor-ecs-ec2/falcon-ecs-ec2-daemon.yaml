@@ -56,7 +56,7 @@ Parameters:
   Backend:
     Type: String
     Default: bpf
-    Description: Backend option, allowed values "kernel" and "bpf". Starting with sensor v7.39, the sensor always uses `bpf` and `kernel` will be ignored.
+    Description: Backend option, allowed values "kernel" and "bpf". Starting with sensor v7.40, the sensor always uses `bpf` and `kernel` will be ignored.
     AllowedValues:
       - bpf
       - kernel
