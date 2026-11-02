@@ -231,13 +231,13 @@ determine the right info.
 ### Step 3: Get the CloudFormation template
 Clone this CrowdStrike repo with the following command:
 ```bash
-  git clone https://github.com/CrowdStrike/falcon-cloudformation.git
+  git clone https://github.com/CrowdStrike/aws-cloudformation-falcon-sensor-ecs.git
 ```
 
 ### Step 4: Deploy with CloudFormation
 First navigate to the cloned repository directory and locate the template and parameter file:
 ```bash
-  cd falcon-cloudformation/falcon-sensor-ecs-ec2
+  cd aws-cloudformation-falcon-sensor-ecs/falcon-sensor-ecs-ec2
 ```
 
 Then choose one of these deployment methods:
@@ -505,7 +505,7 @@ After you get the new Falcon sensor version, redeploy the stack using one of the
 
 First navigate to the cloned repository directory and locate the template and parameter file:
 ```bash
-  cd falcon-cloudformation/falcon-sensor-ecs-ec2
+  cd aws-cloudformation-falcon-sensor-ecs/falcon-sensor-ecs-ec2
 ```
 
 Then choose one of these deployment methods:
@@ -619,7 +619,15 @@ Delete the sensor daemon stack from the cluster.
 ### Step 2: Cleanup Falcon sensor artifacts
 After the daemon stack is removed, clean up the artifacts. You have 2 options:
 
-#### Option A: Deploy cleanup using command line parameters
+#### Option A: Deploy cleanup using parameter file
+```bash
+  aws cloudformation deploy \
+    --stack-name falcon-ecs-ec2-daemon-cleanup-$ECS_EC2_CLUSTER_NAME \
+    --template-file falcon-ecs-ec2-daemon-cleanup.yaml \
+    --parameter-overrides file://falcon-ecs-ec2-daemon-cleanup-parameters.json
+```
+
+#### Option B: Deploy cleanup using command line parameters
 ```bash
   aws cloudformation deploy \
     --stack-name falcon-ecs-ec2-daemon-cleanup-$ECS_EC2_CLUSTER_NAME \
@@ -627,14 +635,6 @@ After the daemon stack is removed, clean up the artifacts. You have 2 options:
     --parameter-overrides \
       "ECSClusterName=$ECS_EC2_CLUSTER_NAME" \
       "FalconImagePath=$FALCON_FULL_IMAGE_PATH"
-```
-
-#### Option B: Deploy cleanup using parameter file
-```bash
-  aws cloudformation deploy \
-    --stack-name falcon-ecs-ec2-daemon-cleanup-$ECS_EC2_CLUSTER_NAME \
-    --template-file falcon-ecs-ec2-daemon-cleanup.yaml \
-    --parameter-overrides file://falcon-ecs-ec2-daemon-cleanup-parameters.json
 ```
 
 ### Step 3: Delete cleanup stack

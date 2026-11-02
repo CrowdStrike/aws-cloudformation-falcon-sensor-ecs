@@ -15,14 +15,14 @@ Parameters:
     AllowedValues:
       - true
       - false
+  ECSExecutionRoleArn:
+    Type: String
+    Description: Execution role name used to send container logs to CloudWatch. Only required if logging is enabled.
+    Default: ""
   ECSTaskRoleArn:
     Type: String
     Description: Task role name to exec in to the Falcon container. Only required if logging is enabled.
     Default: ""
-  CapacityProviderName:
-    Type: String
-    Default: ""
-    Description: Name of the ECS capacity provider to constrain daemon scheduling. Leave empty to schedule on all instances regardless of capacity provider.
 
 Metadata:
   AWS::CloudFormation::Interface:
@@ -35,14 +35,18 @@ Metadata:
 
 Conditions:
   IsLoggingEnabled: !Equals [!Ref EnableLogging, "true"]
+  IsExecutionRoleRequired: !Condition IsLoggingEnabled
   IsTaskRoleRequired: !Condition IsLoggingEnabled
-  HasCapacityProviderName: !Not [!Equals [!Ref CapacityProviderName, ""]]
 
 Resources:
   FalconECSTaskDefinition:
     Type: AWS::ECS::DaemonTaskDefinition
     Properties:
       PidMode: shared
+      ExecutionRoleArn: !If
+        - IsExecutionRoleRequired
+        - !Ref ECSExecutionRoleArn
+        - !Ref AWS::NoValue
       TaskRoleArn: !If
         - IsTaskRoleRequired
         - !Ref ECSTaskRoleArn
@@ -96,10 +100,8 @@ Resources:
     Properties:
       ClusterArn: !Sub "arn:${AWS::Partition}:ecs:${AWS::Region}:${AWS::AccountId}:cluster/${ECSClusterName}"
       DaemonName: crowdstrike-falcon-cleanup-daemon
-      CapacityProviderArns: !If
-        - HasCapacityProviderName
-        - - !Sub "arn:${AWS::Partition}:ecs:${AWS::Region}:${AWS::AccountId}:capacity-provider/${CapacityProviderName}"
-        - !Ref AWS::NoValue
+      CapacityProviderArns:
+        - !Sub "arn:${AWS::Partition}:ecs:${AWS::Region}:${AWS::AccountId}:capacity-provider/${ECSClusterName}-capacity-provider"
       EnableECSManagedTags: true
       DaemonTaskDefinitionArn: !Ref FalconECSTaskDefinition
 

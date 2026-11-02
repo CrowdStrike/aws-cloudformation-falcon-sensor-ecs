@@ -1,11 +1,11 @@
-# Falcon Sensor CloudFormation Template for ECS EC2 Managed
-Automatically secure all EC2 instances in your Amazon ECS EC2 Managed cluster by deploying the Falcon sensor using CloudFormation templates.
+# Falcon Sensor CloudFormation Template for ECS Managed Instances
+Automatically secure all ECS Managed instances in your Amazon ECS cluster by deploying the Falcon sensor using CloudFormation templates.
 
 Deploying the Falcon sensor as an [ECS Managed Daemon](https://docs.aws.amazon.com/AmazonECS/latest/developerguide/managed-daemons.html)
 through CloudFormation gives you:
 
-- **Complete coverage**: Automatically protects all EC2 instances in your ECS cluster
-- **Zero-touch deployment**: New EC2 instances receive the sensor immediately when added
+- **Complete coverage**: Automatically protects all ECS Managed Instances in your ECS cluster
+- **Zero-touch deployment**: New ECS Managed Instances receive the sensor immediately when added
 - **Persistent protection**: Sensors continue running even after instance restarts
 - **Infrastructure as code**: Deploy consistently across environments with version control
 
@@ -15,8 +15,24 @@ Verify you meet these requirements:
 - AWS CLI is configured with the appropriate permissions
 - Git installed for accessing templates
 - You have access to the CrowdStrike Falcon container registry
-- You have an existing ECS EC2 Managed cluster, or you have the ability to create one
+- You have an existing ECS cluster with ECS Managed Instances, or you have the ability to create one
+- Your cluster has a capacity provider named `<your-cluster-name>-capacity-provider`. For info, see [Capacity provider](#capacity-provider).
 - For all Falcon sensor for Linux requirements, see [Falcon Sensor for Linux System Requirements](https://falcon.crowdstrike.com/documentation/page/edd7717e/falcon-sensor-for-linux-system-requirements)
+
+### Capacity provider
+ECS Managed Daemons are scheduled on the instances managed by the capacity providers associated with the daemon. The
+templates associate the daemon with a capacity provider named `<your-cluster-name>-capacity-provider`. For example, a
+cluster named `prod-cluster` must have a capacity provider named `prod-cluster-capacity-provider`. The deployment fails
+if this capacity provider does not exist.
+
+Verify the capacity providers associated with your cluster:
+```bash
+  aws ecs describe-clusters \
+    --clusters $ECS_CLUSTER_NAME \
+    --query "clusters[0].capacityProviders"
+```
+
+**Note:** The Falcon sensor managed by this CFT runs only on instances managed by this capacity provider.
 
 ### AWS CLI region
 Ensure your AWS CLI is configured to use the same region as your ECS cluster. CloudFormation stacks are region-specific,
@@ -54,12 +70,18 @@ execute-command features, the additional required permissions are shown in the t
         cloudformation:DescribeChangeSet<br>
         <br>
         ecs:DescribeClusters<br>
-        ecs:RegisterTaskDefinition<br>
-        ecs:DeregisterTaskDefinition<br>
-        ecs:CreateService<br>
-        ecs:UpdateService<br>
-        ecs:DeleteService<br>
-        ecs:DescribeServices<br>
+        ecs:RegisterDaemonTaskDefinition<br>
+        ecs:DescribeDaemonTaskDefinition<br>
+        ecs:DeleteDaemonTaskDefinition<br>
+        ecs:CreateDaemon<br>
+        ecs:UpdateDaemon<br>
+        ecs:DeleteDaemon<br>
+        ecs:DescribeDaemon<br>
+        ecs:ListDaemonDeployments<br>
+        ecs:DescribeDaemonDeployments<br>
+        ecs:TagResource<br>
+        ecs:UntagResource<br>
+        ecs:ListTagsForResource<br>
         <br>
         iam:PassRole<br>
         <br>
@@ -82,7 +104,7 @@ execute-command features, the additional required permissions are shown in the t
         ssmmessages:OpenControlChannel<br>
         ssmmessages:OpenDataChannel
       </td>
-      <td style="text-align:left;vertical-align:top">Only required when ECS exec is enabled</td>
+      <td style="text-align:left;vertical-align:top">Only required when logging or ECS exec is enabled</td>
     </tr>
     <tr>
       <td>ECS Task Role</td>
@@ -103,13 +125,13 @@ execute-command features, the additional required permissions are shown in the t
   <tbody>
     <tr>
       <td>>= 0.1.x</td>
-      <td>>= 7.19.x</td>
+      <td>>= 8.12.x</td>
     </tr>
   </tbody>
 </table>
 
-## Deploy the Falcon sensor on ECS EC2 Managed cluster
-To complete your Falcon sensor for Linux deployment on ECS EC2 Managed clusters with AWS CloudFormation, you should complete these steps:
+## Deploy the Falcon sensor on an ECS cluster with ECS Managed Instances
+To complete your Falcon sensor for Linux deployment on an ECS cluster with ECS Managed Instances with AWS CloudFormation, you should complete these steps:
 
 - [Step 1: Get the Falcon sensor image](#step-1-get-the-falcon-sensor-image)
 - [Step 2: Define your deployment parameters](#step-2-define-your-deployment-parameters)
@@ -118,8 +140,8 @@ To complete your Falcon sensor for Linux deployment on ECS EC2 Managed clusters 
 - [Step 5: Verify the deployment](#step-5-verify-the-deployment)
 
 ### About the CloudFormation template
-The CloudFormation template deploys the Falcon sensor as an ECS daemon on your ECS EC2 Managed cluster, ensuring complete
-protection across all EC2 instances.
+The CloudFormation template deploys the Falcon sensor as an ECS daemon on your ECS cluster with
+ECS Managed Instances, ensuring complete protection across all ECS Managed Instances.
 
 <table>
   <tr>
@@ -131,8 +153,8 @@ protection across all EC2 instances.
     <td>
       <ul>
         <li>Two-container design: an initialization container and a main sensor container</li>
-        <li>ECS daemon scheduling ensures 1 sensor per EC2 instance</li>
-        <li>Automatically protects new instances as they join the cluster</li>
+        <li>ECS daemon scheduling ensures 1 sensor per ECS Managed Instance managed by the cluster's capacity provider</li>
+        <li>Automatically protects new instances as they join the capacity provider</li>
       </ul>
     </td>
   </tr>
@@ -143,7 +165,7 @@ protection across all EC2 instances.
         <li>Memory reservation: 512MiB default (configurable)</li>
         <li>CPU reservation: 256 CPU units default (configurable)</li>
         <li>Storage: Persistent volumes at /opt/CrowdStrike/falconstore and /opt/CrowdStrike/config</li>
-        <li>Platform: Requires Linux-based EC2 Managed instances</li>
+        <li>Platform: Requires Linux-based ECS Managed Instances</li>
       </ul>
     </td>
   </tr>
@@ -209,7 +231,7 @@ determine the right info.
   </thead>
   <tbody>
     <tr>
-      <td>ECS_EC2_CLUSTER_NAME</td>
+      <td>ECS_CLUSTER_NAME</td>
       <td>Your ECS cluster name</td>
       <td>your-ecs-cluster-name</td>
     </tr>
@@ -221,7 +243,7 @@ determine the right info.
     <tr>
       <td>FALCON_FULL_IMAGE_PATH</td>
       <td>Full path to Falcon sensor image in ECR</td>
-      <td>XXXXXXXXXX.XXX.ecr.region.amazonaws.com/falcon-sensor:7.19.0-17219-1.falcon-linux.Release.US-1</td>
+      <td>XXXXXXXXXX.XXX.ecr.region.amazonaws.com/falcon-sensor:8.12.0-19609-1</td>
     </tr>
   </tbody>
 </table>
@@ -229,34 +251,34 @@ determine the right info.
 ### Step 3: Get the CloudFormation template
 Clone this CrowdStrike repo with the following command:
 ```bash
-  git clone https://github.com/CrowdStrike/falcon-cloudformation.git
+  git clone https://github.com/CrowdStrike/aws-cloudformation-falcon-sensor-ecs.git
 ```
 
 ### Step 4: Deploy with CloudFormation
 First navigate to the cloned repository directory and locate the template and parameter file:
 ```bash
-  cd falcon-cloudformation/falcon-sensor-ecs-ec2-managed
+  cd aws-cloudformation-falcon-sensor-ecs/falcon-sensor-ecs-managed
 ```
 
 Then choose one of these deployment methods:
 #### Option A: Deploy using parameter file
 **Important:** Ensure your AWS CLI is set to the correct region. For info, see [AWS CLI region](#aws-cli-region).
 
-Edit the daemon-cft-parameters.json file to replace the placeholder values with your actual configuration:
+Edit the falcon-ecs-managed-daemon-parameters.json file to replace the placeholder values with your actual configuration:
 ```json
 [
   "ECSClusterName=your-ecs-cluster-name",
   "FalconCID=XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX-XX",
-  "FalconImagePath=XXXXXXXXXXXX.XXX.ecr.region.amazonaws.com/falcon-sensor:7.19.0-17219-1.falcon-linux.Release.US-1"
+  "FalconImagePath=XXXXXXXXXXXX.XXX.ecr.region.amazonaws.com/falcon-sensor:8.12.0-19609-1"
 ]
 ```
 
 Deploy the AWS CloudFormation stack using the AWS CLI:
 ```bash
   aws cloudformation deploy \
-    --stack-name falcon-ecs-ec2-managed-daemon-$ECS_EC2_CLUSTER_NAME \
-    --template-file daemon-cft.yaml \
-    --parameter-overrides file://daemon-cft-parameters.json
+    --stack-name falcon-ecs-managed-daemon-$ECS_CLUSTER_NAME \
+    --template-file falcon-ecs-managed-daemon.yaml \
+    --parameter-overrides file://falcon-ecs-managed-daemon-parameters.json
 ```
 
 #### Option B: Deploy using command line parameters
@@ -265,21 +287,21 @@ Deploy the AWS CloudFormation stack using the AWS CLI:
 Deploy the AWS CloudFormation stack using the AWS CLI:
 ```bash
   aws cloudformation deploy \
-    --stack-name falcon-ecs-ec2-managed-daemon-$ECS_EC2_CLUSTER_NAME \
-    --template-file daemon-cft.yaml \
+    --stack-name falcon-ecs-managed-daemon-$ECS_CLUSTER_NAME \
+    --template-file falcon-ecs-managed-daemon.yaml \
     --parameter-overrides \
-      "ECSClusterName=$ECS_EC2_CLUSTER_NAME" \
+      "ECSClusterName=$ECS_CLUSTER_NAME" \
       "FalconCID=$FALCON_CID" \
       "FalconImagePath=$FALCON_FULL_IMAGE_PATH"
 ```
 
 ### Step 5: Verify the deployment
-When the deployment is complete, verify the Falcon sensor is running on all EC2 instances in your cluster.
+When the deployment is complete, verify the Falcon sensor is running on all ECS Managed Instances in your cluster.
 
 1. Check the CloudFormation deployment status
 ```bash
   aws cloudformation describe-stacks \
-    --stack-name falcon-ecs-ec2-managed-daemon-$ECS_EC2_CLUSTER_NAME \
+    --stack-name falcon-ecs-managed-daemon-$ECS_CLUSTER_NAME \
     --query "Stacks[0].StackStatus"
 ```
 The CloudFormation stack will show `CREATE_COMPLETE` if deployed successfully.
@@ -287,7 +309,7 @@ The CloudFormation stack will show `CREATE_COMPLETE` if deployed successfully.
 2. Verify the ECS daemon is running and check the sensor count:
 ```bash
   DAEMON_ARN=$(aws cloudformation describe-stack-resources \
-    --stack-name falcon-ecs-ec2-managed-daemon-$ECS_EC2_CLUSTER_NAME \
+    --stack-name falcon-ecs-managed-daemon-$ECS_CLUSTER_NAME \
     --logical-resource-id FalconECSDaemon \
     --query "StackResources[0].PhysicalResourceId" \
     --output text)
@@ -296,7 +318,7 @@ The CloudFormation stack will show `CREATE_COMPLETE` if deployed successfully.
     --daemon-arn $DAEMON_ARN \
     --query "daemon.currentRevisions[0].totalRunningCount"
 ```
-The output should match the number of EC2 instances in your cluster.
+The output should match the number of ECS Managed Instances in your cluster.
 
 3. Confirm the deployment completed successfully:
 ```bash
@@ -342,7 +364,7 @@ The output should show `SUCCESSFUL`.
       <td>FalconImagePath</td>
       <td>Yes</td>
       <td>Full path to Falcon sensor image in ECR</td>
-      <td>Example: XXXXXXXXXXXX.XXX.ecr.region.amazonaws.com/falcon-sensor:7.19.0-17219-1.falcon-linux.Release.US-1</td>
+      <td>Example: XXXXXXXXXXXX.XXX.ecr.region.amazonaws.com/falcon-sensor:8.12.0-19609-1</td>
     </tr>
     <tr>
       <td>APD</td>
@@ -456,12 +478,6 @@ The output should show `SUCCESSFUL`.
       <td>Default: 10</td>
     </tr>
     <tr>
-      <td>CapacityProviderName</td>
-      <td>No</td>
-      <td>Name of the ECS capacity provider to constrain daemon scheduling. Leave empty to schedule on all instances regardless of capacity provider.</td>
-      <td>Example: my-asg-capacity-provider</td>
-    </tr>
-    <tr>
       <td>TaskDefinitionFamily</td>
       <td>No</td>
       <td>Task definition family name. Leave empty to use the stack name. Set this to preserve revision history when migrating from a previous deployment.</td>
@@ -536,28 +552,28 @@ After you get the new Falcon sensor version, redeploy the stack using one of the
 
 First navigate to the cloned repository directory and locate the template and parameter file:
 ```bash
-  cd falcon-cloudformation/falcon-sensor-ecs-ec2-managed
+  cd aws-cloudformation-falcon-sensor-ecs/falcon-sensor-ecs-managed
 ```
 
 Then choose one of these deployment methods:
 #### Option A: Deploy using parameter file
 **Important:** Ensure your AWS CLI is set to the correct region. For info, see [AWS CLI region](#aws-cli-region).
 
-Edit the daemon-cft-parameters.json file to replace the placeholder values with your actual configuration:
+Edit the falcon-ecs-managed-daemon-parameters.json file to replace the placeholder values with your actual configuration:
 ```json
 [
   "ECSClusterName=your-ecs-cluster-name",
   "FalconCID=XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX-XX",
-  "FalconImagePath=XXXXXXXXXXXX.XXX.ecr.region.amazonaws.com/falcon-sensor:7.19.0-17219-1.falcon-linux.Release.US-1"
+  "FalconImagePath=XXXXXXXXXXXX.XXX.ecr.region.amazonaws.com/falcon-sensor:8.12.0-19609-1"
 ]
 ```
 
 Deploy the AWS CloudFormation stack using the AWS CLI:
 ```bash
   aws cloudformation deploy \
-    --stack-name falcon-ecs-ec2-managed-daemon-$ECS_EC2_CLUSTER_NAME \
-    --template-file daemon-cft.yaml \
-    --parameter-overrides file://daemon-cft-parameters.json
+    --stack-name falcon-ecs-managed-daemon-$ECS_CLUSTER_NAME \
+    --template-file falcon-ecs-managed-daemon.yaml \
+    --parameter-overrides file://falcon-ecs-managed-daemon-parameters.json
 ```
 
 #### Option B: Deploy using command line parameters
@@ -566,17 +582,17 @@ Deploy the AWS CloudFormation stack using the AWS CLI:
 Deploy the AWS CloudFormation stack using the AWS CLI:
 ```bash
   aws cloudformation deploy \
-    --stack-name falcon-ecs-ec2-managed-daemon-$ECS_EC2_CLUSTER_NAME \
-    --template-file daemon-cft.yaml \
+    --stack-name falcon-ecs-managed-daemon-$ECS_CLUSTER_NAME \
+    --template-file falcon-ecs-managed-daemon.yaml \
     --parameter-overrides \
-      "ECSClusterName=$ECS_EC2_CLUSTER_NAME" \
+      "ECSClusterName=$ECS_CLUSTER_NAME" \
       "FalconCID=$FALCON_CID" \
       "FalconImagePath=$FALCON_FULL_IMAGE_PATH"
 ```
 
 ### Step 3: Verify that the upgrade completed successfully
 After you redeploy the stack with the new Falcon sensor, you can verify that the upgrade was successful and that the
-upgraded Falcon sensor is running on all EC2 instances in your cluster. Verifying an upgrade in the same way you verify
+upgraded Falcon sensor is running on all ECS Managed Instances in your cluster. You verify an upgrade in the same way you verify
 the initial deployment. For details, see [Step 5: Verify the deployment](#step-5-verify-the-deployment).
 
 ## Uninstall the sensor
@@ -587,7 +603,7 @@ To uninstall the Falcon sensor, you must complete these steps:
 - [Step 3: Delete the cleanup stack](#step-3-delete-cleanup-stack)
 
 ### About the cleanup template
-The cleanup template uninstalls the Falcon sensor from all EC2 instances in your cluster. Here's what you need to know:
+The cleanup template uninstalls the Falcon sensor from all ECS Managed Instances in your cluster. Here's what you need to know:
 
 <table>
   <tr>
@@ -618,9 +634,9 @@ The cleanup template uninstalls the Falcon sensor from all EC2 instances in your
     <td>Deployment</td>
     <td>
       <ul>
-        <li>Uses ECS daemon scheduling to run on every instance</li>
+        <li>Uses ECS daemon scheduling to run on every instance managed by the cluster's capacity provider</li>
         <li>Creates a daemon named crowdstrike-falcon-cleanup-daemon</li>
-        <li>Requires the same IAM roles as the installation template</li>
+        <li>Requires an ECS execution role and task role only when logging is enabled</li>
       </ul>
     </td>
   </tr>
@@ -644,28 +660,28 @@ Delete the sensor daemon stack from the cluster.
 
 ```bash
   aws cloudformation delete-stack \
-    --stack-name falcon-ecs-ec2-managed-daemon-$ECS_EC2_CLUSTER_NAME
+    --stack-name falcon-ecs-managed-daemon-$ECS_CLUSTER_NAME
 ```
 
 ### Step 2: Cleanup Falcon sensor artifacts
 After the daemon stack is removed, clean up the artifacts. You have 2 options:
 
-#### Option A: Deploy cleanup using command line parameters
+#### Option A: Deploy cleanup using parameter file
 ```bash
   aws cloudformation deploy \
-    --stack-name falcon-ecs-ec2-managed-daemon-cleanup-$ECS_EC2_CLUSTER_NAME \
-    --template-file daemon-cleanup-cft.yaml \
-    --parameter-overrides \
-      "ECSClusterName=$ECS_EC2_CLUSTER_NAME" \
-      "FalconImagePath=$FALCON_FULL_IMAGE_PATH"
+    --stack-name falcon-ecs-managed-daemon-cleanup-$ECS_CLUSTER_NAME \
+    --template-file falcon-ecs-managed-daemon-cleanup.yaml \
+    --parameter-overrides file://falcon-ecs-managed-daemon-cleanup-parameters.json
 ```
 
-#### Option B: Deploy cleanup using parameter file
+#### Option B: Deploy cleanup using command line parameters
 ```bash
   aws cloudformation deploy \
-    --stack-name falcon-ecs-ec2-managed-daemon-cleanup-$ECS_EC2_CLUSTER_NAME \
-    --template-file daemon-cleanup-cft.yaml \
-    --parameter-overrides file://daemon-cleanup-cft-parameters.json
+    --stack-name falcon-ecs-managed-daemon-cleanup-$ECS_CLUSTER_NAME \
+    --template-file falcon-ecs-managed-daemon-cleanup.yaml \
+    --parameter-overrides \
+      "ECSClusterName=$ECS_CLUSTER_NAME" \
+      "FalconImagePath=$FALCON_FULL_IMAGE_PATH"
 ```
 
 ### Step 3: Delete cleanup stack
@@ -673,24 +689,24 @@ Delete the cleanup stack from the cluster.
 
 ```bash
   aws cloudformation delete-stack \
-    --stack-name falcon-ecs-ec2-managed-daemon-cleanup-$ECS_EC2_CLUSTER_NAME
+    --stack-name falcon-ecs-managed-daemon-cleanup-$ECS_CLUSTER_NAME
 ```
 
 ## Advanced Configuration
 Advanced configuration includes additional configuration options outside of the basic deployment setup. To enable any
 of the advanced configuration options, add the parameters to the parameters file and then redeploy the stack.
 
-1. Add the required parameters to the daemon-cft-parameters.json file.
+1. Add the required parameters to the falcon-ecs-managed-daemon-parameters.json file.
 2. Redeploy with CloudFormation stack with the updated parameter file:
 ```bash
   aws cloudformation deploy \
-    --stack-name falcon-ecs-ec2-managed-daemon-$ECS_EC2_CLUSTER_NAME \
-    --template-file daemon-cft.yaml \
-    --parameter-overrides file://daemon-cft-parameters.json
+    --stack-name falcon-ecs-managed-daemon-$ECS_CLUSTER_NAME \
+    --template-file falcon-ecs-managed-daemon.yaml \
+    --parameter-overrides file://falcon-ecs-managed-daemon-parameters.json
 ```
 3. Alternative: Use `--parameter-overrides` to pass the parameters directly to the template.
 
-**Tip:** To see all the deployment steps, see [Deploy on ECS EC2 Managed cluster](#deploy-the-falcon-sensor-on-ecs-ec2-managed-cluster).
+**Tip:** To see all the deployment steps, see [Deploy on an ECS cluster with ECS Managed Instances](#deploy-the-falcon-sensor-on-an-ecs-cluster-with-ecs-managed-instances).
 
 ### Configure deployment behavior
 Control how sensor updates roll out across your cluster during stack updates. By default, ECS updates 10% of instances
@@ -744,6 +760,11 @@ Enable logging with these parameters:
       <td>ECS task role passed to the Falcon sensor ECS task definition</td>
       <td>IAM ARN for a role with AmazonECSTaskExecutionRolePolicy attached</td>
     </tr>
+    <tr>
+      <td>ECSExecutionRoleArn</td>
+      <td>ECS execution role used to send container logs to CloudWatch</td>
+      <td>IAM ARN for a role with AmazonECSTaskExecutionRolePolicy attached</td>
+    </tr>
   </tbody>
 </table>
 
@@ -762,7 +783,7 @@ To view the logs:
    1. Streams with prefix `falcon-node-init` contain logs from the initialization container
    2. Streams with prefix `falcon-node-sensor` contain logs from the main sensor container
 
-Each EC2 instance in your cluster will have its own log streams, allowing you to monitor sensor activity across your entire environment.
+Each ECS Managed Instance in your cluster will have its own log streams, allowing you to monitor sensor activity across your entire environment.
 
 ### Enable ECS exec
 Execute commands in the Falcon sensor for Linux for troubleshooting. ECS exec should only be enabled if and when required.
@@ -810,7 +831,7 @@ After enabling ECS exec, you can execute commands inside the Falcon sensor conta
 ```bash
   aws ecs list-tasks \
     --cluster your-cluster-name \
-    --service-name crowdstrike-falcon-node-daemon \
+    --daemon-name crowdstrike-falcon-node-daemon \
     --query 'taskArns[0]' \
     --output text
 ```

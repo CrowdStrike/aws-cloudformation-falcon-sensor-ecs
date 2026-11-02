@@ -103,10 +103,6 @@ Parameters:
     Type: Number
     Description: Percentage of instances that can be updated simultaneously during a daemon deployment. Lower values reduce blast radius during updates.
     Default: 10
-  CapacityProviderName:
-    Type: String
-    Default: ""
-    Description: Name of the ECS capacity provider to constrain daemon scheduling. Leave empty to schedule on all instances regardless of capacity provider.
   TaskDefinitionFamily:
     Type: String
     Default: ""
@@ -164,6 +160,7 @@ Metadata:
           default: Advanced options for logging
         Parameters:
           - EnableLogging
+          - ECSExecutionRoleArn
           - ECSTaskRoleArn
       - Label:
           default: Advanced options for execute-command
@@ -176,7 +173,6 @@ Metadata:
         Parameters:
           - DeploymentBakeTimeInMinutes
           - DeploymentDrainPercent
-          - CapacityProviderName
           - TaskDefinitionFamily
       - Label:
           default: Advanced options for setting resource limits
@@ -190,7 +186,9 @@ Metadata:
 Conditions:
   IsLoggingEnabled: !Equals [!Ref EnableLogging, "true"]
   IsExecuteCommandEnabled: !Equals [!Ref EnableExecuteCommand, "true"]
-  IsExecutionRoleRequired: !Condition IsExecuteCommandEnabled
+  IsExecutionRoleRequired: !Or
+    - !Condition IsLoggingEnabled
+    - !Condition IsExecuteCommandEnabled
   IsTaskRoleRequired: !Or
     - !Condition IsLoggingEnabled
     - !Condition IsExecuteCommandEnabled
@@ -202,7 +200,6 @@ Conditions:
   SetMemoryLimits: !Or
     - !Condition IsResourceLimitsEnabled
     - !Not [!Equals [!Ref SensorMemoryLimit, 0]]
-  HasCapacityProviderName: !Not [!Equals [!Ref CapacityProviderName, ""]]
   HasTaskDefinitionFamily: !Not [!Equals [!Ref TaskDefinitionFamily, ""]]
 
 Resources:
@@ -312,10 +309,8 @@ Resources:
     Properties:
       ClusterArn: !Sub "arn:${AWS::Partition}:ecs:${AWS::Region}:${AWS::AccountId}:cluster/${ECSClusterName}"
       DaemonName: crowdstrike-falcon-node-daemon
-      CapacityProviderArns: !If
-        - HasCapacityProviderName
-        - - !Sub "arn:${AWS::Partition}:ecs:${AWS::Region}:${AWS::AccountId}:capacity-provider/${CapacityProviderName}"
-        - !Ref AWS::NoValue
+      CapacityProviderArns:
+        - !Sub "arn:${AWS::Partition}:ecs:${AWS::Region}:${AWS::AccountId}:capacity-provider/${ECSClusterName}-capacity-provider"
       DeploymentConfiguration:
         BakeTimeInMinutes: !Ref DeploymentBakeTimeInMinutes
         DrainPercent: !Ref DeploymentDrainPercent
