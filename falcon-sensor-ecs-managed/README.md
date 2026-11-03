@@ -448,7 +448,7 @@ The output should show `SUCCESSFUL`.
       <td>CrowdStrike cloud region. The sensor can auto-derive the region; only set this if auto-detection fails in your environment.</td>
       <td>
         Default: (auto-detect)<br>
-        Options: us-1, us-2, eu-1, us-gov-1, us-gov-2
+        Options: us-1, us-2, us-3, eu-1, us-gov-1, us-gov-2
       </td>
     </tr>
     <tr>
