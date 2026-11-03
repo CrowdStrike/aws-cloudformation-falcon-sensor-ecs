@@ -10,6 +10,9 @@ Parameters:
   FalconImagePath:
     Type: String
     Description: The ECR image path including tag value for the Linux Falcon sensor container image
+  CapacityProviderArns:
+    Type: CommaDelimitedList
+    Description: Comma separated list of ECS Managed Instances capacity provider ARNs. The Falcon sensor runs only on instances managed by these capacity providers.
 
   APD:
     Type: String
@@ -143,6 +146,7 @@ Metadata:
           - ECSClusterName
           - FalconCID
           - FalconImagePath
+          - CapacityProviderArns
       - Label:
           default: Optional falconctl install options
         Parameters:
@@ -309,8 +313,7 @@ Resources:
     Properties:
       ClusterArn: !Sub "arn:${AWS::Partition}:ecs:${AWS::Region}:${AWS::AccountId}:cluster/${ECSClusterName}"
       DaemonName: crowdstrike-falcon-node-daemon
-      CapacityProviderArns:
-        - !Sub "arn:${AWS::Partition}:ecs:${AWS::Region}:${AWS::AccountId}:capacity-provider/${ECSClusterName}-capacity-provider"
+      CapacityProviderArns: !Ref CapacityProviderArns
       DeploymentConfiguration:
         BakeTimeInMinutes: !Ref DeploymentBakeTimeInMinutes
         DrainPercent: !Ref DeploymentDrainPercent

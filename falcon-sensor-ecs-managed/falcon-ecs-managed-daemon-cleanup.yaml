@@ -7,6 +7,9 @@ Parameters:
   FalconImagePath:
     Type: String
     Description: The ECR image path including tag value for the Linux Falcon sensor container image
+  CapacityProviderArns:
+    Type: CommaDelimitedList
+    Description: Comma separated list of ECS Managed Instances capacity provider ARNs. Use the same capacity providers as the Falcon sensor daemon so every instance is cleaned up.
 
   EnableLogging:
     Type: String
@@ -32,6 +35,7 @@ Metadata:
         Parameters:
           - ECSClusterName
           - FalconImagePath
+          - CapacityProviderArns
 
 Conditions:
   IsLoggingEnabled: !Equals [!Ref EnableLogging, "true"]
@@ -100,8 +104,7 @@ Resources:
     Properties:
       ClusterArn: !Sub "arn:${AWS::Partition}:ecs:${AWS::Region}:${AWS::AccountId}:cluster/${ECSClusterName}"
       DaemonName: crowdstrike-falcon-cleanup-daemon
-      CapacityProviderArns:
-        - !Sub "arn:${AWS::Partition}:ecs:${AWS::Region}:${AWS::AccountId}:capacity-provider/${ECSClusterName}-capacity-provider"
+      CapacityProviderArns: !Ref CapacityProviderArns
       EnableECSManagedTags: true
       DaemonTaskDefinitionArn: !Ref FalconECSTaskDefinition
 

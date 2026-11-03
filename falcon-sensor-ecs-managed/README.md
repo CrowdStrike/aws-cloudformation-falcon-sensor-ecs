@@ -16,23 +16,26 @@ Verify you meet these requirements:
 - Git installed for accessing templates
 - You have access to the CrowdStrike Falcon container registry
 - You have an existing ECS cluster with ECS Managed Instances, or you have the ability to create one
-- Your cluster has a capacity provider named `<your-cluster-name>-capacity-provider`. For info, see [Capacity provider](#capacity-provider).
+- Your cluster has at least one ECS Managed Instances capacity provider. For info, see [Capacity providers](#capacity-providers).
 - For all Falcon sensor for Linux requirements, see [Falcon Sensor for Linux System Requirements](https://falcon.crowdstrike.com/documentation/page/edd7717e/falcon-sensor-for-linux-system-requirements)
 
-### Capacity provider
-ECS Managed Daemons are scheduled on the instances managed by the capacity providers associated with the daemon. The
-templates associate the daemon with a capacity provider named `<your-cluster-name>-capacity-provider`. For example, a
-cluster named `prod-cluster` must have a capacity provider named `prod-cluster-capacity-provider`. The deployment fails
-if this capacity provider does not exist.
+### Capacity providers
+ECS Managed Daemons are scheduled only on the instances managed by the capacity providers associated with the daemon.
+The templates require the `CapacityProviderArns` parameter: a comma separated list of the ECS Managed Instances capacity
+provider ARNs that the Falcon sensor should run on. Instances managed by capacity providers that are not in this list are
+not protected.
 
-Verify the capacity providers associated with your cluster:
+To protect every ECS Managed Instance in your cluster, include all the cluster's ECS Managed Instances capacity
+providers. Get their ARNs as a comma separated list:
 ```bash
-  aws ecs describe-clusters \
-    --clusters $ECS_CLUSTER_NAME \
-    --query "clusters[0].capacityProviders"
+  export CAPACITY_PROVIDER_ARNS=$(aws ecs describe-capacity-providers \
+    --cluster $ECS_CLUSTER_NAME \
+    --query "join(',', capacityProviders[?managedInstancesProvider].capacityProviderArn)" \
+    --output text)
 ```
 
-**Note:** The Falcon sensor managed by this CFT runs only on instances managed by this capacity provider.
+**Note:** Use the same `CapacityProviderArns` value for the cleanup template so that every instance that ran the sensor
+is cleaned up.
 
 ### AWS CLI region
 Ensure your AWS CLI is configured to use the same region as your ECS cluster. CloudFormation stacks are region-specific,
@@ -153,8 +156,8 @@ ECS Managed Instances, ensuring complete protection across all ECS Managed Insta
     <td>
       <ul>
         <li>Two-container design: an initialization container and a main sensor container</li>
-        <li>ECS daemon scheduling ensures 1 sensor per ECS Managed Instance managed by the cluster's capacity provider</li>
-        <li>Automatically protects new instances as they join the capacity provider</li>
+        <li>ECS daemon scheduling ensures 1 sensor per ECS Managed Instance managed by the capacity providers in CapacityProviderArns</li>
+        <li>Automatically protects new instances as they join those capacity providers</li>
       </ul>
     </td>
   </tr>
@@ -245,6 +248,11 @@ determine the right info.
       <td>Full path to Falcon sensor image in ECR</td>
       <td>XXXXXXXXXX.XXX.ecr.region.amazonaws.com/falcon-sensor:8.12.0-19609-1</td>
     </tr>
+    <tr>
+      <td>CAPACITY_PROVIDER_ARNS</td>
+      <td>Comma separated list of ECS Managed Instances capacity provider ARNs. For info, see <a href="#capacity-providers">Capacity providers</a>.</td>
+      <td>arn:aws:ecs:region:XXXXXXXXXXXX:capacity-provider/cp-1,arn:aws:ecs:region:XXXXXXXXXXXX:capacity-provider/cp-2</td>
+    </tr>
   </tbody>
 </table>
 
@@ -269,7 +277,8 @@ Edit the falcon-ecs-managed-daemon-parameters.json file to replace the placehold
 [
   "ECSClusterName=your-ecs-cluster-name",
   "FalconCID=XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX-XX",
-  "FalconImagePath=XXXXXXXXXXXX.XXX.ecr.region.amazonaws.com/falcon-sensor:8.12.0-19609-1"
+  "FalconImagePath=XXXXXXXXXXXX.XXX.ecr.region.amazonaws.com/falcon-sensor:8.12.0-19609-1",
+  "CapacityProviderArns=arn:aws:ecs:region:XXXXXXXXXXXX:capacity-provider/cp-1,arn:aws:ecs:region:XXXXXXXXXXXX:capacity-provider/cp-2"
 ]
 ```
 
@@ -292,7 +301,8 @@ Deploy the AWS CloudFormation stack using the AWS CLI:
     --parameter-overrides \
       "ECSClusterName=$ECS_CLUSTER_NAME" \
       "FalconCID=$FALCON_CID" \
-      "FalconImagePath=$FALCON_FULL_IMAGE_PATH"
+      "FalconImagePath=$FALCON_FULL_IMAGE_PATH" \
+      "CapacityProviderArns=$CAPACITY_PROVIDER_ARNS"
 ```
 
 ### Step 5: Verify the deployment
@@ -365,6 +375,12 @@ The output should show `SUCCESSFUL`.
       <td>Yes</td>
       <td>Full path to Falcon sensor image in ECR</td>
       <td>Example: XXXXXXXXXXXX.XXX.ecr.region.amazonaws.com/falcon-sensor:8.12.0-19609-1</td>
+    </tr>
+    <tr>
+      <td>CapacityProviderArns</td>
+      <td>Yes</td>
+      <td>Comma separated list of ECS Managed Instances capacity provider ARNs. The Falcon sensor runs only on instances managed by these capacity providers.</td>
+      <td>Example: arn:aws:ecs:region:XXXXXXXXXXXX:capacity-provider/cp-1,arn:aws:ecs:region:XXXXXXXXXXXX:capacity-provider/cp-2</td>
     </tr>
     <tr>
       <td>APD</td>
@@ -564,7 +580,8 @@ Edit the falcon-ecs-managed-daemon-parameters.json file to replace the placehold
 [
   "ECSClusterName=your-ecs-cluster-name",
   "FalconCID=XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX-XX",
-  "FalconImagePath=XXXXXXXXXXXX.XXX.ecr.region.amazonaws.com/falcon-sensor:8.12.0-19609-1"
+  "FalconImagePath=XXXXXXXXXXXX.XXX.ecr.region.amazonaws.com/falcon-sensor:8.12.0-19609-1",
+  "CapacityProviderArns=arn:aws:ecs:region:XXXXXXXXXXXX:capacity-provider/cp-1,arn:aws:ecs:region:XXXXXXXXXXXX:capacity-provider/cp-2"
 ]
 ```
 
@@ -587,7 +604,8 @@ Deploy the AWS CloudFormation stack using the AWS CLI:
     --parameter-overrides \
       "ECSClusterName=$ECS_CLUSTER_NAME" \
       "FalconCID=$FALCON_CID" \
-      "FalconImagePath=$FALCON_FULL_IMAGE_PATH"
+      "FalconImagePath=$FALCON_FULL_IMAGE_PATH" \
+      "CapacityProviderArns=$CAPACITY_PROVIDER_ARNS"
 ```
 
 ### Step 3: Verify that the upgrade completed successfully
@@ -634,7 +652,7 @@ The cleanup template uninstalls the Falcon sensor from all ECS Managed Instances
     <td>Deployment</td>
     <td>
       <ul>
-        <li>Uses ECS daemon scheduling to run on every instance managed by the cluster's capacity provider</li>
+        <li>Uses ECS daemon scheduling to run on every instance managed by the capacity providers in CapacityProviderArns</li>
         <li>Creates a daemon named crowdstrike-falcon-cleanup-daemon</li>
         <li>Requires an ECS execution role and task role only when logging is enabled</li>
       </ul>
@@ -681,7 +699,8 @@ After the daemon stack is removed, clean up the artifacts. You have 2 options:
     --template-file falcon-ecs-managed-daemon-cleanup.yaml \
     --parameter-overrides \
       "ECSClusterName=$ECS_CLUSTER_NAME" \
-      "FalconImagePath=$FALCON_FULL_IMAGE_PATH"
+      "FalconImagePath=$FALCON_FULL_IMAGE_PATH" \
+      "CapacityProviderArns=$CAPACITY_PROVIDER_ARNS"
 ```
 
 ### Step 3: Delete cleanup stack
