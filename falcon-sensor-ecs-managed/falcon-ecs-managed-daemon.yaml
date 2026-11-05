@@ -13,6 +13,9 @@ Parameters:
   CapacityProviderArns:
     Type: CommaDelimitedList
     Description: Comma separated list of ECS Managed Instances capacity provider ARNs. The Falcon sensor runs only on instances managed by these capacity providers.
+  ECSExecutionRoleArn:
+    Type: String
+    Description: Execution role used by ECS to pull the Falcon sensor image from ECR and send container logs to CloudWatch. Required for ECS Managed Instances.
 
   APD:
     Type: String
@@ -83,13 +86,9 @@ Parameters:
     AllowedValues:
       - true
       - false
-  ECSExecutionRoleArn:
-    Type: String
-    Description: Execution role name to exec in to the Falcon container. Only required if logging or ECS exec is enabled.
-    Default: ""
   ECSTaskRoleArn:
     Type: String
-    Description: Task role name to exec in to the Falcon container. Only required if logging or ECS exec is enabled.
+    Description: Task role with the SSM permissions required to exec in to the Falcon container. Only required if ECS exec is enabled.
     Default: ""
 
   DeploymentBakeTimeInMinutes:
@@ -151,6 +150,7 @@ Metadata:
           - FalconCID
           - FalconImagePath
           - CapacityProviderArns
+          - ECSExecutionRoleArn
       - Label:
           default: Optional falconctl install options
         Parameters:
@@ -167,13 +167,10 @@ Metadata:
           default: Advanced options for logging
         Parameters:
           - EnableLogging
-          - ECSExecutionRoleArn
-          - ECSTaskRoleArn
       - Label:
           default: Advanced options for execute-command
         Parameters:
           - EnableExecuteCommand
-          - ECSExecutionRoleArn
           - ECSTaskRoleArn
       - Label:
           default: Advanced options for daemon deployment
@@ -207,9 +204,7 @@ Conditions:
   IsExecutionRoleRequired: !Or
     - !Condition IsLoggingEnabled
     - !Condition IsExecuteCommandEnabled
-  IsTaskRoleRequired: !Or
-    - !Condition IsLoggingEnabled
-    - !Condition IsExecuteCommandEnabled
+  IsTaskRoleRequired: !Condition IsExecuteCommandEnabled
 
   IsResourceLimitsEnabled: !Equals [!Ref EnableResourceLimits, "true"]
   SetCpuLimits: !Or
@@ -237,10 +232,7 @@ Resources:
         - HasTaskDefinitionFamily
         - !Ref TaskDefinitionFamily
         - !Sub "${AWS::StackName}"
-      ExecutionRoleArn: !If
-        - IsExecutionRoleRequired
-        - !Ref ECSExecutionRoleArn
-        - !Ref AWS::NoValue
+      ExecutionRoleArn: !Ref ECSExecutionRoleArn
       TaskRoleArn: !If
         - IsTaskRoleRequired
         - !Ref ECSTaskRoleArn

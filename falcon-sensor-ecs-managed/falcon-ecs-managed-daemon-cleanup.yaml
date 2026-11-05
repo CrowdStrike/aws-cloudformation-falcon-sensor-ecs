@@ -10,6 +10,9 @@ Parameters:
   CapacityProviderArns:
     Type: CommaDelimitedList
     Description: Comma separated list of ECS Managed Instances capacity provider ARNs. Use the same capacity providers as the Falcon sensor daemon so every instance is cleaned up.
+  ECSExecutionRoleArn:
+    Type: String
+    Description: Execution role used by ECS to pull the Falcon sensor image from ECR and send container logs to CloudWatch. Required for ECS Managed Instances.
 
   EnableLogging:
     Type: String
@@ -18,10 +21,6 @@ Parameters:
     AllowedValues:
       - true
       - false
-  ECSExecutionRoleArn:
-    Type: String
-    Description: Execution role name used to send container logs to CloudWatch. Only required if logging is enabled.
-    Default: ""
   ECSTaskRoleArn:
     Type: String
     Description: Task role name to exec in to the Falcon container. Only required if logging is enabled.
@@ -40,6 +39,7 @@ Metadata:
           - ECSClusterName
           - FalconImagePath
           - CapacityProviderArns
+          - ECSExecutionRoleArn
 
 Conditions:
   IsLoggingEnabled: !Equals [!Ref EnableLogging, "true"]

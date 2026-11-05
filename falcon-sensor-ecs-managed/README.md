@@ -46,8 +46,9 @@ and your deployment will fail if the CLI is configured for a different region th
 - Alternatively, specify the region in each command: `aws cloudformation deploy --region <your-region> …`
 
 ### Required IAM Permissions
-For most users, the standard ECS and CloudFormation permissions are sufficient. However, if you plan to use logging or
-execute-command features, the additional required permissions are shown in the table.
+An ECS execution role is required for every deployment. On ECS Managed Instances, the instance role does not include
+permissions to pull images from ECR or send container logs to CloudWatch, so ECS uses the execution role for both. If you
+plan to use the execute-command feature, the additional required permissions are shown in the table.
 
 <table>
   <thead>
@@ -99,20 +100,18 @@ execute-command features, the additional required permissions are shown in the t
     </tr>
     <tr>
       <td>ECS Execution Role</td>
+      <td>AmazonECSTaskExecutionRolePolicy</td>
+      <td style="text-align:left;vertical-align:top">Always required. Used to pull the Falcon sensor image from ECR and send container logs to CloudWatch</td>
+    </tr>
+    <tr>
+      <td>ECS Task Role</td>
       <td>
-        AmazonECSTaskExecutionRolePolicy<br>
-        <br>
         ssmmessages:CreateControlChannel<br>
         ssmmessages:CreateDataChannel<br>
         ssmmessages:OpenControlChannel<br>
         ssmmessages:OpenDataChannel
       </td>
-      <td style="text-align:left;vertical-align:top">Only required when logging or ECS exec is enabled</td>
-    </tr>
-    <tr>
-      <td>ECS Task Role</td>
-      <td>AmazonECSTaskExecutionRolePolicy</td>
-      <td>Only required when logging or ECS exec is enabled</td>
+      <td style="text-align:left;vertical-align:top">Only required when ECS exec is enabled</td>
     </tr>
   </tbody>
 </table>
@@ -277,6 +276,11 @@ determine the right info.
       <td>Comma separated list of ECS Managed Instances capacity provider ARNs. For info, see <a href="#capacity-providers">Capacity providers</a>.</td>
       <td>arn:aws:ecs:region:XXXXXXXXXXXX:capacity-provider/cp-1,arn:aws:ecs:region:XXXXXXXXXXXX:capacity-provider/cp-2</td>
     </tr>
+    <tr>
+      <td>ECS_EXECUTION_ROLE_ARN</td>
+      <td>Your ECS task execution role with AmazonECSTaskExecutionRolePolicy attached</td>
+      <td>arn:aws:iam::XXXXXXXXXXXX:role/ecsTaskExecutionRole</td>
+    </tr>
   </tbody>
 </table>
 
@@ -305,7 +309,8 @@ Edit the falcon-ecs-managed-daemon-parameters.json file to replace the placehold
   "ECSClusterName=your-ecs-cluster-name",
   "FalconCID=XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX-XX",
   "FalconImagePath=XXXXXXXXXXXX.XXX.ecr.region.amazonaws.com/falcon-sensor:8.12.0-19609-1",
-  "CapacityProviderArns=arn:aws:ecs:region:XXXXXXXXXXXX:capacity-provider/cp-1,arn:aws:ecs:region:XXXXXXXXXXXX:capacity-provider/cp-2"
+  "CapacityProviderArns=arn:aws:ecs:region:XXXXXXXXXXXX:capacity-provider/cp-1,arn:aws:ecs:region:XXXXXXXXXXXX:capacity-provider/cp-2",
+  "ECSExecutionRoleArn=arn:aws:iam::XXXXXXXXXXXX:role/ecsTaskExecutionRole"
 ]
 ```
 
@@ -329,7 +334,8 @@ Deploy the AWS CloudFormation stack using the AWS CLI:
       "ECSClusterName=$ECS_CLUSTER_NAME" \
       "FalconCID=$FALCON_CID" \
       "FalconImagePath=$FALCON_FULL_IMAGE_PATH" \
-      "CapacityProviderArns=$CAPACITY_PROVIDER_ARNS"
+      "CapacityProviderArns=$CAPACITY_PROVIDER_ARNS" \
+      "ECSExecutionRoleArn=$ECS_EXECUTION_ROLE_ARN"
 ```
 
 ### Step 5: Verify the deployment
@@ -421,6 +427,12 @@ The output should show `SUCCESSFUL`.
       <td>Example: arn:aws:ecs:region:XXXXXXXXXXXX:capacity-provider/cp-1,arn:aws:ecs:region:XXXXXXXXXXXX:capacity-provider/cp-2</td>
     </tr>
     <tr>
+      <td>ECSExecutionRoleArn</td>
+      <td>Yes</td>
+      <td>Your ECS task execution role already defined in IAM. Used to pull the Falcon sensor image from ECR and send container logs to CloudWatch.</td>
+      <td>Example: arn:aws:iam::XXXXXXXXXXXX:role/ecsTaskExecutionRole</td>
+    </tr>
+    <tr>
       <td>APD</td>
       <td>No</td>
       <td>App Proxy Disable (APD)</td>
@@ -499,15 +511,9 @@ The output should show `SUCCESSFUL`.
       </td>
     </tr>
     <tr>
-      <td>ECSExecutionRoleArn</td>
-      <td>No</td>
-      <td>Your ECS execution role already defined in IAM. Required if logging or ECS exec is enabled.</td>
-      <td>Example: arn:aws:iam::XXXXXXXXXXXX:role/yourEcsExecutionRole</td>
-    </tr>
-    <tr>
       <td>ECSTaskRoleArn</td>
       <td>No</td>
-      <td>Your ECS task role already defined in IAM. Required if logging or execute-command is enabled.</td>
+      <td>Your ECS task role already defined in IAM, with the SSM permissions for ECS exec. Required if execute-command is enabled.</td>
       <td>Example: arn:aws:iam::XXXXXXXXXXXX:role/yourEcsTaskRole</td>
     </tr>
     <tr>
@@ -622,7 +628,8 @@ Edit the falcon-ecs-managed-daemon-parameters.json file to replace the placehold
   "ECSClusterName=your-ecs-cluster-name",
   "FalconCID=XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX-XX",
   "FalconImagePath=XXXXXXXXXXXX.XXX.ecr.region.amazonaws.com/falcon-sensor:8.12.0-19609-1",
-  "CapacityProviderArns=arn:aws:ecs:region:XXXXXXXXXXXX:capacity-provider/cp-1,arn:aws:ecs:region:XXXXXXXXXXXX:capacity-provider/cp-2"
+  "CapacityProviderArns=arn:aws:ecs:region:XXXXXXXXXXXX:capacity-provider/cp-1,arn:aws:ecs:region:XXXXXXXXXXXX:capacity-provider/cp-2",
+  "ECSExecutionRoleArn=arn:aws:iam::XXXXXXXXXXXX:role/ecsTaskExecutionRole"
 ]
 ```
 
@@ -646,7 +653,8 @@ Deploy the AWS CloudFormation stack using the AWS CLI:
       "ECSClusterName=$ECS_CLUSTER_NAME" \
       "FalconCID=$FALCON_CID" \
       "FalconImagePath=$FALCON_FULL_IMAGE_PATH" \
-      "CapacityProviderArns=$CAPACITY_PROVIDER_ARNS"
+      "CapacityProviderArns=$CAPACITY_PROVIDER_ARNS" \
+      "ECSExecutionRoleArn=$ECS_EXECUTION_ROLE_ARN"
 ```
 
 ### Step 3: Verify that the upgrade completed successfully
@@ -699,7 +707,7 @@ deployed the sensor with `DaemonCritical=false`. Here's what you need to know:
       <ul>
         <li>Uses ECS daemon scheduling to run on every instance managed by the capacity providers in CapacityProviderArns</li>
         <li>Creates a non-critical daemon named crowdstrike-falcon-cleanup-daemon, so the cleanup containers exiting doesn't replace instances</li>
-        <li>Requires an ECS execution role and task role only when logging is enabled</li>
+        <li>Requires the same ECS execution role as the installation template</li>
       </ul>
     </td>
   </tr>
@@ -749,7 +757,8 @@ value to the cleanup template.
     --parameter-overrides \
       "ECSClusterName=$ECS_CLUSTER_NAME" \
       "FalconImagePath=$FALCON_FULL_IMAGE_PATH" \
-      "CapacityProviderArns=$CAPACITY_PROVIDER_ARNS"
+      "CapacityProviderArns=$CAPACITY_PROVIDER_ARNS" \
+      "ECSExecutionRoleArn=$ECS_EXECUTION_ROLE_ARN"
 ```
 
 ### Step 3: Delete cleanup stack
@@ -868,20 +877,11 @@ Enable logging with these parameters:
       <td>Enable logging for the sensor container</td>
       <td>true</td>
     </tr>
-    <tr>
-      <td>ECSTaskRoleArn</td>
-      <td>ECS task role passed to the Falcon sensor ECS task definition</td>
-      <td>IAM ARN for a role with AmazonECSTaskExecutionRolePolicy attached</td>
-    </tr>
-    <tr>
-      <td>ECSExecutionRoleArn</td>
-      <td>ECS execution role used to send container logs to CloudWatch</td>
-      <td>IAM ARN for a role with AmazonECSTaskExecutionRolePolicy attached</td>
-    </tr>
   </tbody>
 </table>
 
-**Note:** When logging is enabled, additional IAM roles/permissions are needed. For info, see [Required IAM Permissions](#required-iam-permissions).
+**Note:** Container logs are sent to CloudWatch using the ECS execution role passed in `ECSExecutionRoleArn`. For info,
+see [Required IAM Permissions](#required-iam-permissions).
 
 #### Access the Logs
 After enabling logging, you can access the Falcon sensor logs through CloudWatch. The logs are stored in a log group
@@ -895,6 +895,8 @@ To view the logs:
 4. The logs are separated into streams:
    1. Streams with prefix `falcon-node-init` contain logs from the initialization container
    2. Streams with prefix `falcon-node-sensor` contain logs from the main sensor container
+   3. If you run the cleanup template with logging enabled, streams with prefixes `falcon-node-cleanup` and
+      `falcon-node-cleanup-sleep` contain logs from the cleanup containers
 
 Each ECS Managed Instance in your cluster will have its own log streams, allowing you to monitor sensor activity across your entire environment.
 
@@ -918,16 +920,9 @@ Enable ECS exec with these parameters:
     </tr>
     <tr>
       <td>ECSTaskRoleArn</td>
-      <td>ECS task role for the Falcon sensor</td>
-      <td>IAM ARN for a role with AmazonECSTaskExecutionRolePolicy attached</td>
-    </tr>
-    <tr>
-      <td>ECSExecutionRoleArn</td>
-      <td>ECS execution role with required SSM permissions</td>
+      <td>ECS task role with required SSM permissions</td>
       <td>
-        IAM ARN for a role with AmazonECSTaskExecutionRolePolicy attached<br>
-        <br>
-        SSM permissions required:<br>
+        IAM ARN for a role with these SSM permissions:<br>
           - ssmmessages:CreateControlChannel<br>
           - ssmmessages:CreateDataChannel<br>
           - ssmmessages:OpenControlChannel<br>
