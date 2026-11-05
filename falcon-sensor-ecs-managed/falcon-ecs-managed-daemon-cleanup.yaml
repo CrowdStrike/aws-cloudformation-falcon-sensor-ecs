@@ -26,6 +26,10 @@ Parameters:
     Type: String
     Description: Task role name to exec in to the Falcon container. Only required if logging is enabled.
     Default: ""
+  TaskDefinitionFamily:
+    Type: String
+    Default: ""
+    Description: Task definition family name. Leave empty to use the stack name. Set this to the same TaskDefinitionFamily as the Falcon sensor daemon to register the cleanup task definition in the same family.
 
 Metadata:
   AWS::CloudFormation::Interface:
@@ -41,12 +45,17 @@ Conditions:
   IsLoggingEnabled: !Equals [!Ref EnableLogging, "true"]
   IsExecutionRoleRequired: !Condition IsLoggingEnabled
   IsTaskRoleRequired: !Condition IsLoggingEnabled
+  HasTaskDefinitionFamily: !Not [!Equals [!Ref TaskDefinitionFamily, ""]]
 
 Resources:
   FalconECSTaskDefinition:
     Type: AWS::ECS::DaemonTaskDefinition
     Properties:
       PidMode: shared
+      Family: !If
+        - HasTaskDefinitionFamily
+        - !Ref TaskDefinitionFamily
+        - !Sub "${AWS::StackName}"
       ExecutionRoleArn: !If
         - IsExecutionRoleRequired
         - !Ref ECSExecutionRoleArn
@@ -74,7 +83,7 @@ Resources:
               Options:
                 awslogs-group: !Sub "/aws/ecs/${ECSClusterName}/crowdstrike/falcon-daemon-service"
                 awslogs-region: !Ref AWS::Region
-                awslogs-stream-prefix: "falcon-node-init"
+                awslogs-stream-prefix: "falcon-node-cleanup"
             - !Ref AWS::NoValue
         - Name: cleanup-sleep
           Image: !Ref FalconImagePath
@@ -96,7 +105,7 @@ Resources:
               Options:
                 awslogs-group: !Sub "/aws/ecs/${ECSClusterName}/crowdstrike/falcon-daemon-service"
                 awslogs-region: !Ref AWS::Region
-                awslogs-stream-prefix: "falcon-node-sensor"
+                awslogs-stream-prefix: "falcon-node-cleanup-sleep"
             - !Ref AWS::NoValue
 
   FalconECSCleanupDaemon:
@@ -105,6 +114,7 @@ Resources:
       ClusterArn: !Sub "arn:${AWS::Partition}:ecs:${AWS::Region}:${AWS::AccountId}:cluster/${ECSClusterName}"
       DaemonName: crowdstrike-falcon-cleanup-daemon
       CapacityProviderArns: !Ref CapacityProviderArns
+      Critical: false
       EnableECSManagedTags: true
       DaemonTaskDefinitionArn: !Ref FalconECSTaskDefinition
 

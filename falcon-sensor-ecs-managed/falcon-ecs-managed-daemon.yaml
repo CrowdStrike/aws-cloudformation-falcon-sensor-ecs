@@ -56,13 +56,6 @@ Parameters:
       - ""
       - default
       - metered
-  Backend:
-    Type: String
-    Default: bpf
-    Description: Backend option, allowed values "kernel" and "bpf"
-    AllowedValues:
-      - bpf
-      - kernel
   Cloud:
     Type: String
     Default: ""
@@ -111,12 +104,22 @@ Parameters:
     Type: String
     Default: ""
     Description: Task definition family name. Leave empty to use the stack name. Set this to preserve revision history when migrating from a previous deployment.
+  DaemonCritical:
+    Type: String
+    Description: >-
+      Boolean string to mark the Falcon sensor daemon as critical. When true, an instance doesn't run workloads until the sensor starts,
+      and ECS drains and replaces the instance if the sensor stops. When false, instances run workloads even if the sensor fails or stops.
+    Default: true
+    AllowedValues:
+      - true
+      - false
 
   EnableResourceLimits:
     Type: String
     Description: >-
       Boolean string to enable setting hard limits for Falcon sensor task CPU and memory resources. Resource limits should only be enabled
       after analyzing and understanding the resource requirements for the Falcon sensor that is running in your ECS environment.
+      When true, SensorCpuLimit and SensorMemoryLimit must both be non-zero.
     Default: false
     AllowedValues:
       - true
@@ -159,7 +162,6 @@ Metadata:
           - Tags
           - ProvisioningToken
           - Billing
-          - Backend
           - Cloud
       - Label:
           default: Advanced options for logging
@@ -179,6 +181,7 @@ Metadata:
           - DeploymentBakeTimeInMinutes
           - DeploymentDrainPercent
           - TaskDefinitionFamily
+          - DaemonCritical
       - Label:
           default: Advanced options for setting resource limits
         Parameters:
@@ -188,9 +191,19 @@ Metadata:
           - SensorMemoryReservation
           - SensorMemoryLimit
 
+Rules:
+  ResourceLimitsRequireValues:
+    RuleCondition: !Equals [!Ref EnableResourceLimits, "true"]
+    Assertions:
+      - Assert: !Not [!Equals [!Ref SensorCpuLimit, "0"]]
+        AssertDescription: SensorCpuLimit must be non-zero when EnableResourceLimits is true
+      - Assert: !Not [!Equals [!Ref SensorMemoryLimit, "0"]]
+        AssertDescription: SensorMemoryLimit must be non-zero when EnableResourceLimits is true
+
 Conditions:
   IsLoggingEnabled: !Equals [!Ref EnableLogging, "true"]
   IsExecuteCommandEnabled: !Equals [!Ref EnableExecuteCommand, "true"]
+  IsDaemonCritical: !Equals [!Ref DaemonCritical, "true"]
   IsExecutionRoleRequired: !Or
     - !Condition IsLoggingEnabled
     - !Condition IsExecuteCommandEnabled
@@ -286,8 +299,6 @@ Resources:
               Value: !Ref ProvisioningToken
             - Name: FALCONCTL_OPT_BILLING
               Value: !Ref Billing
-            - Name: FALCONCTL_OPT_BACKEND
-              Value: !Ref Backend
             - Name: FALCONCTL_OPT_CLOUD
               Value: !Ref Cloud
           Cpu: !Ref SensorCpuReservation
@@ -315,6 +326,7 @@ Resources:
       ClusterArn: !Sub "arn:${AWS::Partition}:ecs:${AWS::Region}:${AWS::AccountId}:cluster/${ECSClusterName}"
       DaemonName: crowdstrike-falcon-node-daemon
       CapacityProviderArns: !Ref CapacityProviderArns
+      Critical: !If [IsDaemonCritical, true, false]
       DeploymentConfiguration:
         BakeTimeInMinutes: !Ref DeploymentBakeTimeInMinutes
         DrainPercent: !Ref DeploymentDrainPercent

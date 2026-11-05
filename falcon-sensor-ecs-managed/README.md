@@ -6,7 +6,7 @@ through CloudFormation gives you:
 
 - **Complete coverage**: Automatically protects all ECS Managed Instances in your ECS cluster
 - **Zero-touch deployment**: New ECS Managed Instances receive the sensor immediately when added
-- **Persistent protection**: Sensors continue running even after instance restarts
+- **Automatic recovery**: By default, if a sensor exits, ECS replaces the instance, and the new instance runs the sensor before other workloads
 - **Infrastructure as code**: Deploy consistently across environments with version control
 
 ## Requirements
@@ -187,7 +187,7 @@ ECS Managed Instances, ensuring complete protection across all ECS Managed Insta
     <td>
       <ul>
         <li>Basic: CID, image path, cluster name, IAM roles</li>
-        <li>Advanced: Proxy settings, logging levels, tagging, backend selection, cloud region</li>
+        <li>Advanced: Proxy settings, logging levels, tagging, cloud region</li>
         <li>Logging: CloudWatch integration available but disabled by default</li>
       </ul>
     </td>
@@ -197,8 +197,8 @@ ECS Managed Instances, ensuring complete protection across all ECS Managed Insta
     <td>
       <ul>
         <li>Daemon name: crowdstrike-falcon-node-daemon</li>
-        <li>Supports ECS Execute Command for troubleshooting</li>
-        <li>Persists across instance reboots and cluster scaling events</li>
+        <li>New instances from cluster scaling events get the sensor before other workloads</li>
+        <li>Instances are replaced, not restarted in place. For info, see <a href="#instance-replacement">Instance replacement</a></li>
         <li>Configurable rolling update behavior via deployment bake time and drain percent</li>
       </ul>
     </td>
@@ -207,6 +207,30 @@ ECS Managed Instances, ensuring complete protection across all ECS Managed Insta
 
 This template follows security best practices while ensuring the Falcon sensor has the access it needs to properly
 protect your workloads.
+
+### Instance replacement
+ECS Managed Instances doesn't restart or reboot instances in place. ECS drains and replaces an instance when the sensor
+daemon task is placed or changed. This happens when you:
+
+- Deploy the sensor: existing instances are replaced in batches, and the sensor starts on each new instance before your workloads
+- Upgrade the sensor or redeploy with changed sensor parameters
+
+When the sensor daemon is critical (`DaemonCritical=true`, the default), ECS also replaces the instance when you:
+
+- Delete the sensor daemon stack
+- Stop the sensor task, or the sensor exits
+
+Each replacement instance registers in the Falcon console as a new host with a new agent ID (AID). The hosts for the
+replaced instances go offline. Batch size and pacing follow the `DeploymentDrainPercent` and
+`DeploymentBakeTimeInMinutes` parameters. For info, see [Configure deployment behavior](#configure-deployment-behavior)
+and [Configure daemon criticality](#configure-daemon-criticality).
+
+Setting `DaemonCritical=false` doesn't prevent instance replacement when you deploy, upgrade, or change the sensor. It
+only stops ECS from replacing an instance when the sensor stops, exits, or becomes unhealthy. Consider it only if your
+workloads can't tolerate unplanned instance drains and workload availability matters more than guaranteed coverage. The
+setting applies to every instance in `CapacityProviderArns`. With `DaemonCritical=false`, instances can run workloads
+without the sensor if the sensor fails to start or stops. For info, see
+[Configure daemon criticality](#configure-daemon-criticality).
 
 ### Step 1: Get the Falcon sensor image
 The AWS CloudFormation template requires that the Falcon sensor image is hosted in your Amazon ECR repo. Use the
@@ -267,6 +291,9 @@ First navigate to the cloned repository directory and locate the template and pa
 ```bash
   cd aws-cloudformation-falcon-sensor-ecs/falcon-sensor-ecs-managed
 ```
+
+**Note:** Deploying the sensor replaces the existing instances in your capacity providers in batches. For info, see
+[Instance replacement](#instance-replacement).
 
 Then choose one of these deployment methods:
 #### Option A: Deploy using parameter file
@@ -329,6 +356,17 @@ The CloudFormation stack will show `CREATE_COMPLETE` if deployed successfully.
     --query "daemon.currentRevisions[0].totalRunningCount"
 ```
 The output should match the number of ECS Managed Instances in your cluster.
+
+**Important:** This check is required. A deployment can report `SUCCESSFUL` in the next step even when an instance has
+no sensor. This can happen on first install if a replacement instance launches before the daemon exists and is filled
+by other workloads. If the count is lower than the number of instances, drain the instances that have no sensor so ECS
+replaces them with instances that run the sensor:
+```bash
+  aws ecs update-container-instances-state \
+    --cluster $ECS_CLUSTER_NAME \
+    --container-instances <container-instance-arn> \
+    --status DRAINING
+```
 
 3. Confirm the deployment completed successfully:
 ```bash
@@ -434,15 +472,6 @@ The output should show `SUCCESSFUL`.
       <td>Options: default, metered</td>
     </tr>
     <tr>
-      <td>Backend</td>
-      <td>No</td>
-      <td>Falcon backend option</td>
-      <td>
-        Default: bpf<br>
-        Option: kernel
-      </td>
-    </tr>
-    <tr>
       <td>Cloud</td>
       <td>No</td>
       <td>CrowdStrike cloud region. The sensor can auto-derive the region; only set this if auto-detection fails in your environment.</td>
@@ -500,6 +529,15 @@ The output should show `SUCCESSFUL`.
       <td>Default: (stack name)</td>
     </tr>
     <tr>
+      <td>DaemonCritical</td>
+      <td>No</td>
+      <td>Mark the Falcon sensor daemon as critical. For info, see <a href="#configure-daemon-criticality">Configure daemon criticality</a>.</td>
+      <td>
+        Default: true<br>
+        Option: false
+      </td>
+    </tr>
+    <tr>
       <td>EnableResourceLimits</td>
       <td>No</td>
       <td>Enable CPU and memory hard limits for the sensor</td>
@@ -544,6 +582,9 @@ The output should show `SUCCESSFUL`.
 ## Upgrade the Falcon sensor
 To upgrade the Falcon sensor, follow the same procedure as the initial deployment. The only difference is that you'll
 need to get the new sensor version and update your deployment with the new image path.
+
+**Note:** An upgrade replaces every instance the sensor runs on. The upgraded instances register as new hosts with new
+AIDs, and the hosts for the old instances go offline. For info, see [Instance replacement](#instance-replacement).
 
 To upgrade the Falcon sensor, you must complete these steps:
 
@@ -614,14 +655,19 @@ upgraded Falcon sensor is running on all ECS Managed Instances in your cluster. 
 the initial deployment. For details, see [Step 5: Verify the deployment](#step-5-verify-the-deployment).
 
 ## Uninstall the sensor
-To uninstall the Falcon sensor, you must complete these steps:
+How you uninstall the Falcon sensor depends on the `DaemonCritical` value you deployed with:
 
-- [Step 1: Delete the Falcon sensor daemon stack](#step-1-delete-the-falcon-sensor-daemon-stack)
-- [Step 2: Clean up Falcon sensor artifacts](#step-2-cleanup-falcon-sensor-artifacts)
-- [Step 3: Delete the cleanup stack](#step-3-delete-cleanup-stack)
+- `DaemonCritical=true` (the default): Complete only [Step 1: Delete the Falcon sensor daemon stack](#step-1-delete-the-falcon-sensor-daemon-stack).
+  ECS drains and replaces every instance the sensor ran on, so no Falcon sensor files or processes remain. No separate
+  cleanup is needed, including before a re-installation.
+- `DaemonCritical=false`: Deleting the stack can leave sensor files in `/opt/CrowdStrike` on your instances. Complete all of these steps:
+  - [Step 1: Delete the Falcon sensor daemon stack](#step-1-delete-the-falcon-sensor-daemon-stack)
+  - [Step 2: Clean up Falcon sensor artifacts](#step-2-cleanup-falcon-sensor-artifacts)
+  - [Step 3: Delete the cleanup stack](#step-3-delete-cleanup-stack)
 
 ### About the cleanup template
-The cleanup template uninstalls the Falcon sensor from all ECS Managed Instances in your cluster. Here's what you need to know:
+The cleanup template removes Falcon sensor files from the ECS Managed Instances in your cluster. You only need it if you
+deployed the sensor with `DaemonCritical=false`. Here's what you need to know:
 
 <table>
   <tr>
@@ -632,9 +678,8 @@ The cleanup template uninstalls the Falcon sensor from all ECS Managed Instances
     <td>Purpose</td>
     <td>
       <ul>
-        <li>Completely removes all Falcon sensor components from host systems</li>
+        <li>Removes Falcon sensor files from /opt/CrowdStrike on host systems</li>
         <li>Prevents artifacts from remaining on the filesystem</li>
-        <li>Ensures clean state for potential future re-installations</li>
       </ul>
     </td>
   </tr>
@@ -653,7 +698,7 @@ The cleanup template uninstalls the Falcon sensor from all ECS Managed Instances
     <td>
       <ul>
         <li>Uses ECS daemon scheduling to run on every instance managed by the capacity providers in CapacityProviderArns</li>
-        <li>Creates a daemon named crowdstrike-falcon-cleanup-daemon</li>
+        <li>Creates a non-critical daemon named crowdstrike-falcon-cleanup-daemon, so the cleanup containers exiting doesn't replace instances</li>
         <li>Requires an ECS execution role and task role only when logging is enabled</li>
       </ul>
     </td>
@@ -663,15 +708,12 @@ The cleanup template uninstalls the Falcon sensor from all ECS Managed Instances
     <td>
       <ul>
         <li>Minimal resource requirements (128MiB memory)</li>
-        <li>Temporary deployment that can be removed after completion</li>
+        <li>Temporary deployment that must be removed after completion</li>
         <li>Uses the same Falcon sensor image as the installation</li>
       </ul>
     </td>
   </tr>
 </table>
-
-This cleanup process is essential for removing the sensor artifacts from prior installation, and must be run before any
-re-installation attempts.
 
 ### Step 1: Delete the Falcon sensor daemon stack
 Delete the sensor daemon stack from the cluster.
@@ -681,8 +723,15 @@ Delete the sensor daemon stack from the cluster.
     --stack-name falcon-ecs-managed-daemon-$ECS_CLUSTER_NAME
 ```
 
+If you deployed the ECS Managed Daemon with `DaemonCritical=true`, the uninstall is complete when the stack deletion finishes.
+
 ### Step 2: Cleanup Falcon sensor artifacts
-After the daemon stack is removed, clean up the artifacts. You have 2 options:
+Only required if you deployed with `DaemonCritical=false`. After the daemon stack is removed, clean up the artifacts.
+You have 2 options:
+
+**Note:** The cleanup task definition family defaults to the cleanup stack name. If you set `TaskDefinitionFamily` for
+the Falcon sensor daemon and want the cleanup task definition in the same family, pass the same `TaskDefinitionFamily`
+value to the cleanup template.
 
 #### Option A: Deploy cleanup using parameter file
 ```bash
@@ -704,7 +753,8 @@ After the daemon stack is removed, clean up the artifacts. You have 2 options:
 ```
 
 ### Step 3: Delete cleanup stack
-Delete the cleanup stack from the cluster.
+Delete the cleanup stack from the cluster after the cleanup tasks have run on every instance. Don't leave the cleanup
+stack deployed.
 
 ```bash
   aws cloudformation delete-stack \
@@ -724,6 +774,9 @@ of the advanced configuration options, add the parameters to the parameters file
     --parameter-overrides file://falcon-ecs-managed-daemon-parameters.json
 ```
 3. Alternative: Use `--parameter-overrides` to pass the parameters directly to the template.
+
+**Note:** Redeploying with changed sensor parameters replaces the instances the sensor runs on. For info, see
+[Instance replacement](#instance-replacement).
 
 **Tip:** To see all the deployment steps, see [Deploy on an ECS cluster with ECS Managed Instances](#deploy-the-falcon-sensor-on-an-ecs-cluster-with-ecs-managed-instances).
 
@@ -755,6 +808,47 @@ at a time and waits 5 minutes after each batch before proceeding.
 
 **Note:** Setting `DeploymentDrainPercent` too high reduces protection coverage during updates. For security sensors,
 conservative values are recommended so the fleet is never broadly unprotected at the same time.
+
+### Configure daemon criticality
+The `DaemonCritical` parameter controls what ECS does when the Falcon sensor fails to start or stops. By default, the
+sensor daemon is critical.
+
+<table>
+  <thead>
+    <tr>
+      <th>Event</th>
+      <th>DaemonCritical=true (default)</th>
+      <th>DaemonCritical=false</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td>Sensor fails to start on a new instance</td>
+      <td>The instance doesn't become active, so no workloads run without the sensor</td>
+      <td>The instance becomes active and runs workloads without the sensor</td>
+    </tr>
+    <tr>
+      <td>Sensor stops or becomes unhealthy</td>
+      <td>ECS drains and replaces the instance</td>
+      <td>The instance and its workloads keep running</td>
+    </tr>
+    <tr>
+      <td>Sensor daemon stack is deleted</td>
+      <td>ECS replaces the instances, so no sensor files remain</td>
+      <td>Sensor files can remain on the instances. For info, see <a href="#uninstall-the-sensor">Uninstall the sensor</a>.</td>
+    </tr>
+  </tbody>
+</table>
+
+Keep the default for most deployments. A critical sensor guarantees that no workload runs on an unprotected instance,
+and an instance whose sensor is stopped is replaced.
+
+Consider `DaemonCritical=false` only if workload availability matters more than guaranteed coverage. For example, if
+your workloads can't tolerate instance drains, or if you don't want a sensor or image pull failure to block cluster
+scaling. If you set `DaemonCritical=false`:
+
+- Monitor for daemon task failures. ECS emits an Amazon EventBridge event when a daemon task fails to start.
+- Regularly compare the sensor count with the instance count. For info, see [Step 5: Verify the deployment](#step-5-verify-the-deployment).
 
 ### Enable logging
 Enable logging to get visibility into the Falcon sensor for Linux operations. By default, logging is disabled.
@@ -882,7 +976,8 @@ and be aware of these potential issues if resources are too low:
 - Sensor throttling: CPU limits may be reached, impacting sensor performance.
 - Unexpected termination: Memory limits may cause the sensor to terminate unexpectedly.
 
-Enable resource limits with these parameters:
+Enable resource limits with these parameters. When `EnableResourceLimits` is `true`, both `SensorCpuLimit` and
+`SensorMemoryLimit` must be non-zero, or the deployment fails parameter validation:
 <table>
   <thead>
     <tr>
