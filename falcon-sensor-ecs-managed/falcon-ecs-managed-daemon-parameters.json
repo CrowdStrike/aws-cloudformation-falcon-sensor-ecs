@@ -1,0 +1,7 @@
+[
+  "ECSClusterName=<INSERT ECS Cluster name>",
+  "FalconCID=<INSERT Falcon CID>",
+  "FalconImagePath=<INSERT ECR Falcon sensor image path>",
+  "CapacityProviderArns=<INSERT comma separated ECS Managed Instances capacity provider ARNs>",
+  "ECSExecutionRoleArn=<INSERT ECS task execution role ARN>"
+]

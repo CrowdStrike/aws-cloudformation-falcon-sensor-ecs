@@ -11,9 +11,10 @@ This repository contains CrowdStrike CloudFormation templates. The CloudFormatio
 are an open source project, not a CrowdStrike product.
 
 ## CloudFormation Templates
-| CloudFormation Templates                       | Description                                                                                                              |
-|:-----------------------------------------------|:-------------------------------------------------------------------------------------------------------------------------|
-| [Falcon Sensor ECS EC2](falcon-sensor-ecs-ec2) | Deploys the Falcon Sensor to an ECS cluster with EC2 instances. See [the README](falcon-sensor-ecs-ec2/README.md) for more info. |
+| CloudFormation Templates                               | Description                                                                                                                                  |
+|:-------------------------------------------------------|:---------------------------------------------------------------------------------------------------------------------------------------------|
+| [Falcon Sensor ECS EC2](falcon-sensor-ecs-ec2)         | Deploys the Falcon Sensor to an ECS cluster with EC2 instances. See [the README](falcon-sensor-ecs-ec2/README.md) for more info.             |
+| [Falcon Sensor ECS Managed](falcon-sensor-ecs-managed) | Deploys the Falcon Sensor to an ECS cluster with ECS Managed instances. See [the README](falcon-sensor-ecs-managed/README.md) for more info. |
 
 ## Support
 CrowdStrike Falcon CloudFormation templates is a community-driven, open source project designed to streamline the
