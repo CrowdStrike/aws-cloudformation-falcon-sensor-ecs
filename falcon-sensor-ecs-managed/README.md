@@ -150,7 +150,7 @@ plan to use the execute-command feature, the additional required permissions are
   </thead>
   <tbody>
     <tr>
-      <td>>= 0.1.x</td>
+      <td>>= 0.3.x</td>
       <td>>= 8.12.x</td>
     </tr>
   </tbody>
